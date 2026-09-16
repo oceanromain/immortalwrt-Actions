@@ -1,13 +1,78 @@
 #!/bin/bash
 #
 # immortalwrt-Actions DIY part 2 (After Update feeds)
+# 在构建期写入 rootfs 覆盖文件（此时 cwd = openwrt/）
 #
-# 默认 LAN IP（如需改网关地址，取消下一行注释）
-#sed -i 's/192.168.1.1/192.168.1.1/g' package/base-files/files/bin/config_generate
+set -e
 
-# 主机名
-sed -i 's/ImmortalWrt/ImmortalWrt/g' package/base-files/files/bin/config_generate
+F="$PWD/files"
+mkdir -p "$F/etc/init.d" "$F/etc/uci-defaults"
 
-# 确保旧版 luasrc 插件兼容层启用（tcpdump 界面需要）
-grep -q CONFIG_PACKAGE_luci-compat .config || echo 'CONFIG_PACKAGE_luci-compat=y' >> .config
+############################################################
+# ② SoftEther VPN Server：界面启用后 NOT Running
+# 原因：luci-app-softethervpn 自带的 /etc/init.d/softethervpn 是非 procd
+#       脚本，直接在只读的 /usr/libexec/softethervpn 里跑 daemon，
+#       无法写入 vpn_server.config，进程随即退出；且调用了已删除的 fw3。
+#       官方后端包提供的 procd 服务 softethervpnserver 才是正解
+#       （在可写的 /var/softethervpn 中运行）。
+# 做法：把界面使用的同名 init 替换为“受 LuCI 开关控制的 procd 包装器”。
+############################################################
+cat > "$F/etc/init.d/softethervpn" <<'INITEOF'
+#!/bin/sh /etc/rc.common
+#
+# Wrapper: LuCI 开关 UCI softethervpn.@softether[0].enable
+#  -> 官方 procd 服务 softethervpnserver
+#
+START=99
+STOP=10
+
+start() {
+	[ "$(uci -q get softethervpn.@softether[0].enable)" = "1" ] || return 0
+	/etc/init.d/softethervpnserver start
+}
+
+stop() {
+	/etc/init.d/softethervpnserver stop
+}
+INITEOF
+chmod 755 "$F/etc/init.d/softethervpn"
+
+############################################################
+# ① 中文默认语言 / ③ zabbix 启用 / ④ pushbot 启用：
+#    用 uci-defaults 在首次开机落地（脚本需可执行位）
+############################################################
+cat > "$F/etc/uci-defaults/99-immortalwrt-custom" <<'UCIEOF'
+#!/bin/sh
+# 首次开机自定义：中文界面 + pushbot/zabbix 默认启用
+
+# ② softether 包装器加入开机序列（是否真起仍由界面开关控制）
+[ -x /etc/init.d/softethervpn ] && /etc/init.d/softethervpn enable
+
+# ① LuCI 默认简体中文
+uci -q set luci.main.lang='zh_cn'
+uci -q commit luci
+
+# ④ PushBot：默认 pushbot_enable=0 会导致启动即自杀
+if uci -q show pushbot >/dev/null 2>&1; then
+	uci -q set pushbot.pushbot.pushbot_enable='1'
+	uci -q commit pushbot
+	/etc/init.d/pushbot enable
+	/etc/init.d/pushbot restart
+fi
+
+# ③ Zabbix agentd：UCI general.enabled 默认 0，
+#    init 读到 0 直接退出，表现为 active with no instances
+if uci -q show zabbix_agentd >/dev/null 2>&1; then
+	uci -q set zabbix_agentd.general.enabled='1'
+	uci -q commit zabbix_agentd
+	/etc/init.d/zabbix_agentd enable
+	/etc/init.d/zabbix_agentd start
+fi
+
+exit 0
+UCIEOF
+chmod 755 "$F/etc/uci-defaults/99-immortalwrt-custom"
+
+echo "custom files generated:"
+find "$F" -type f -exec ls -l {} \;
 exit 0
