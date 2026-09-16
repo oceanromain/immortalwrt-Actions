@@ -20,4 +20,15 @@ pushd package/community >/dev/null
   # Zabbix agent LuCI（后端 zabbix-agentd 来自 packages feed）
   rm -rf luci-app-zabbix-agent
   git clone --depth 1 https://github.com/zzxym/luci-app-zabbix-agent.git luci-app-zabbix-agent
+  # TurboACC：Flow Offload / BBR / FullCONE 加速（默认只拉 ImmortalWrt 有的
+  # kmod-nft-offload / kmod-tcp-bbr / kmod-nft-fullcone，不碰 Lean 专属 SFE）
+  rm -rf _turboacc-repo luci-app-turboacc
+  git clone --depth 1 https://github.com/chenmozhijin/luci-app-turboacc.git _turboacc-repo
+  cp -r _turboacc-repo/luci-app-turboacc luci-app-turboacc
+  rm -rf _turboacc-repo
+  # netWizard 网络设置向导（htdocs 新结构）
+  rm -rf _netwizard-repo luci-app-netwizard
+  git clone --depth 1 https://github.com/sirpdboy/luci-app-netwizard.git _netwizard-repo
+  cp -r _netwizard-repo/luci-app-netwizard luci-app-netwizard
+  rm -rf _netwizard-repo
 popd >/dev/null
