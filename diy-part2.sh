@@ -6,7 +6,7 @@
 set -e
 
 F="$PWD/files"
-mkdir -p "$F/etc/init.d" "$F/etc/uci-defaults"
+mkdir -p "$F/etc/init.d" "$F/etc/uci-defaults" "$F/etc/sysctl.d"
 
 ############################################################
 # SoftEther VPN Server：界面启用后 NOT Running
@@ -38,6 +38,14 @@ INITEOF
 chmod 755 "$F/etc/init.d/softethervpn"
 
 ############################################################
+# 连接数调优：nf_conntrack_max=165535（START=11 sysctl 读取 /etc/sysctl.d/*.conf；
+# nf_conntrack 由 kmodloader 在更早阶段加载，hotplug 也会按接口重放 net.* 项）
+############################################################
+cat > "$F/etc/sysctl.d/99-conntrack.conf" <<'SYSCTL_EOF'
+net.netfilter.nf_conntrack_max=165535
+SYSCTL_EOF
+
+############################################################
 # 首次开机自定义：时区/中文 + pushbot/zabbix 默认启用
 ############################################################
 cat > "$F/etc/uci-defaults/99-immortalwrt-custom" <<'UCIEOF'
@@ -46,10 +54,19 @@ cat > "$F/etc/uci-defaults/99-immortalwrt-custom" <<'UCIEOF'
 # softether 包装器加入开机序列（是否真起仍由界面开关控制）
 [ -x /etc/init.d/softethervpn ] && /etc/init.d/softethervpn enable
 
+# 默认主机名 StarNetWrt
+uci -q set system.@system[0].hostname='StarNetWrt'
+
 # 时区：Asia/Shanghai (UTC+8)。CST-8 为 POSIX 写法，zonename 供 LuCI/zoneinfo 使用
 uci -q set system.@system[0].timezone='CST-8'
 uci -q set system.@system[0].zonename='Asia/Shanghai'
 uci -q commit system
+
+# 默认 LAN IP：192.168.1.1 -> 192.168.10.1/24
+# 新版为 CIDR list ipaddr，需先删旧值再 add_list（在 config_generate 之后执行）
+uci -q delete network.lan.ipaddr
+uci -q add_list network.lan.ipaddr='192.168.10.1/24'
+uci -q commit network
 
 # LuCI 默认简体中文
 uci -q set luci.main.lang='zh_cn'
