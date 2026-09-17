@@ -9,7 +9,7 @@ F="$PWD/files"
 mkdir -p "$F/etc/init.d" "$F/etc/uci-defaults"
 
 ############################################################
-# ② SoftEther VPN Server：界面启用后 NOT Running
+# SoftEther VPN Server：界面启用后 NOT Running
 # 原因：luci-app-softethervpn 自带的 /etc/init.d/softethervpn 是非 procd
 #       脚本，直接在只读的 /usr/libexec/softethervpn 里跑 daemon，
 #       无法写入 vpn_server.config，进程随即退出；且调用了已删除的 fw3。
@@ -38,21 +38,24 @@ INITEOF
 chmod 755 "$F/etc/init.d/softethervpn"
 
 ############################################################
-# ① 中文默认语言 / ③ zabbix 启用 / ④ pushbot 启用：
-#    用 uci-defaults 在首次开机落地（脚本需可执行位）
+# 首次开机自定义：时区/中文 + pushbot/zabbix 默认启用
 ############################################################
 cat > "$F/etc/uci-defaults/99-immortalwrt-custom" <<'UCIEOF'
 #!/bin/sh
-# 首次开机自定义：中文界面 + pushbot/zabbix 默认启用
 
-# ② softether 包装器加入开机序列（是否真起仍由界面开关控制）
+# softether 包装器加入开机序列（是否真起仍由界面开关控制）
 [ -x /etc/init.d/softethervpn ] && /etc/init.d/softethervpn enable
 
-# ① LuCI 默认简体中文
+# 时区：Asia/Shanghai (UTC+8)。CST-8 为 POSIX 写法，zonename 供 LuCI/zoneinfo 使用
+uci -q set system.@system[0].timezone='CST-8'
+uci -q set system.@system[0].zonename='Asia/Shanghai'
+uci -q commit system
+
+# LuCI 默认简体中文
 uci -q set luci.main.lang='zh_cn'
 uci -q commit luci
 
-# ④ PushBot：默认 pushbot_enable=0 会导致启动即自杀
+# PushBot：默认 pushbot_enable=0 会导致启动即自杀
 if uci -q show pushbot >/dev/null 2>&1; then
 	uci -q set pushbot.pushbot.pushbot_enable='1'
 	uci -q commit pushbot
@@ -60,8 +63,8 @@ if uci -q show pushbot >/dev/null 2>&1; then
 	/etc/init.d/pushbot restart
 fi
 
-# ③ Zabbix agentd：UCI general.enabled 默认 0，
-#    init 读到 0 直接退出，表现为 active with no instances
+# Zabbix agentd：UCI general.enabled 默认 0，
+# init 读到 0 直接退出，表现为 active with no instances
 if uci -q show zabbix_agentd >/dev/null 2>&1; then
 	uci -q set zabbix_agentd.general.enabled='1'
 	uci -q commit zabbix_agentd
