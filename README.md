@@ -4,7 +4,7 @@
 
 ## 内置软件
 
-OpenClash、Tailscale、KMS(vlmcsd)、Lucky、ZeroTier、SoftEther VPN 全套、PushBot、tcpdump、SNMP、Zabbix Agent、WireGuard，以及完整 LuCI Web 界面。
+P@SSW@LL、OpenClash、Tailscale、KMS(vlmcsd)、Lucky、ZeroTier、SoftEther VPN 全套、PushBot、tcpdump、SNMP、Zabbix Agent、WireGuard，以及完整 LuCI Web 界面，本固件主要为PVE定制，增加qemu-ga。
 
 ## 使用
 
