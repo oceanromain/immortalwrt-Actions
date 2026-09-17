@@ -17,6 +17,7 @@
 | 连接数上限 | `net.netfilter.nf_conntrack_max=165535` |
 | Kernel 分区 | 256 MiB |
 | RootFS 分区 | 512 MiB |
+| 默认密码 | 无 |
 
 ## 内置软件与版本
 
