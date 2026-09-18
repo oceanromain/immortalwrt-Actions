@@ -17,7 +17,6 @@
 | 连接数上限 | `net.netfilter.nf_conntrack_max=165535` |
 | Kernel 分区 | 256 MiB |
 | RootFS 分区 | 512 MiB |
-| 默认密码 | 无 |
 
 ## 内置软件与版本
 
@@ -39,7 +38,6 @@
 | luci-app-turboacc | 1.4-r1 | 流量转发加速/BBR/FullCONE |
 | luci-app-upnp | 26.252.03150 | UPnP（miniupnpd-nftables） |
 | luci-app-nlbwmon | 26.252.03150 | 流量带宽统计 |
-| luci-app-netwizard | 2.1.5-r20260312 | 网络设置向导 |
 | luci-app-advanced-reboot | 1.1.2-r6 | 高级重启/备用分区 |
 | luci-app-filemanager | 26.252.03150 | 文件管理 |
 | luci-app-ramfree | 26.252.03150 | 释放内存 |
