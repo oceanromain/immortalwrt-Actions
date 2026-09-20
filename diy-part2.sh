@@ -46,6 +46,22 @@ net.netfilter.nf_conntrack_max=165535
 SYSCTL_EOF
 
 ############################################################
+# Wi-Fi Calling Location Gateway（第三方 Rust 插件）
+# 我们的源码树无 Rust 编译基建，故下载官方 pinned 预编译 x86_64 IPK，
+# 校验 sha256 后把 data 段解进 files/（二进制为 static-pie，零动态库依赖）。
+############################################################
+WLG_URL="https://github.com/smthdagg/wificalling-location-gateway/releases/download/v1.4.0/wificalling-location-gateway_1.4.0-r1_x86_64.ipk"
+WLG_SHA="093f3ee4f97809dce3b3c91a321216a690a3b027d86641244f5bba6535290a0a"
+WLG_TMP="$(mktemp -d)"
+curl -fsSL --retry 3 -o "$WLG_TMP/wlg.ipk" "$WLG_URL"
+echo "$WLG_SHA  $WLG_TMP/wlg.ipk" | sha256sum -c -
+mkdir -p "$WLG_TMP/ar"
+tar xzf "$WLG_TMP/wlg.ipk" -C "$WLG_TMP/ar"
+tar xzf "$WLG_TMP/ar/data.tar.gz" -C "$F"
+rm -rf "$WLG_TMP"
+echo "wificalling-location-gateway integrated into files/"
+
+############################################################
 # 首次开机自定义：时区/中文 + pushbot/zabbix 默认启用
 ############################################################
 cat > "$F/etc/uci-defaults/99-immortalwrt-custom" <<'UCIEOF'
@@ -53,6 +69,11 @@ cat > "$F/etc/uci-defaults/99-immortalwrt-custom" <<'UCIEOF'
 
 # softether 包装器加入开机序列（是否真起仍由界面开关控制）
 [ -x /etc/init.d/softethervpn ] && /etc/init.d/softethervpn enable
+
+# Wi-Fi Calling / WLOC：加入开机序列。默认 enabled=0，开机不真起；
+# 用户在 LuCI 启用后由 procd 拉起
+[ -x /etc/init.d/wificalling-gateway ] && /etc/init.d/wificalling-gateway enable
+[ -x /etc/init.d/wloc-service ] && /etc/init.d/wloc-service enable
 
 # 默认主机名 StarNetWrt
 uci -q set system.@system[0].hostname='StarNetWrt'
