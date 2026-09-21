@@ -20,6 +20,11 @@ pushd package/community >/dev/null
   # Zabbix agent LuCI（后端 zabbix-agentd 来自 packages feed）
   rm -rf luci-app-zabbix-agent
   git clone --depth 1 https://github.com/zzxym/luci-app-zabbix-agent.git luci-app-zabbix-agent
+  # wrtbwmon：基于 iptables 的流量统计（供 PushBot 客户端流量使用，自动拉 iptables-nft）
+  rm -rf _wrtbwmon-repo wrtbwmon
+  git clone --depth 1 https://github.com/brvphoenix/wrtbwmon.git _wrtbwmon-repo
+  cp -r _wrtbwmon-repo/wrtbwmon wrtbwmon
+  rm -rf _wrtbwmon-repo
   # TurboACC：Flow Offload / BBR / FullCONE 加速（默认只拉 ImmortalWrt 有的
   # kmod-nft-offload / kmod-tcp-bbr / kmod-nft-fullcone，不碰 Lean 专属 SFE）
   rm -rf _turboacc-repo luci-app-turboacc
