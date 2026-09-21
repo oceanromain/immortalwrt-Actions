@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # immortalwrt-Actions DIY part 2 (After Update feeds)
-# 在构建期写入 rootfs 覆盖文件（此时 cwd = openwrt/）
+# 在构建期写入 rootfs 覆盖文件并微调第三方源码（此时 cwd = openwrt/）
 #
 set -e
 
@@ -46,46 +46,43 @@ net.netfilter.nf_conntrack_max=165535
 SYSCTL_EOF
 
 ############################################################
-# Wi-Fi Calling Location Gateway（第三方 Rust 插件）
-# 我们的源码树无 Rust 编译基建，故下载官方 pinned 预编译 x86_64 IPK，
-# 校验 sha256 后把 data 段解进 files/（二进制为 static-pie，零动态库依赖）。
+# PushBot 客户端流量：强制优先使用 wrtbwmon
+# PushBot 原逻辑优先探测 nlbwmon；修好 nlbwmon 后它反而不会用 wrtbwmon，
+# 故在其 init_traffic_source 探测最前面插入 wrtbwmon 优先块。
 ############################################################
-WLG_URL="https://github.com/smthdagg/wificalling-location-gateway/releases/download/v1.4.0/wificalling-location-gateway_1.4.0-r1_x86_64.ipk"
-WLG_SHA="093f3ee4f97809dce3b3c91a321216a690a3b027d86641244f5bba6535290a0a"
-WLG_TMP="$(mktemp -d)"
-curl -fsSL --retry 3 -o "$WLG_TMP/wlg.ipk" "$WLG_URL"
-echo "$WLG_SHA  $WLG_TMP/wlg.ipk" | sha256sum -c -
-mkdir -p "$WLG_TMP/ar"
-tar xzf "$WLG_TMP/wlg.ipk" -C "$WLG_TMP/ar"
-tar xzf "$WLG_TMP/ar/data.tar.gz" -C "$F"
+PB="$PWD/package/community/luci-app-pushbot/root/usr/bin/pushbot/pushbot"
+python3 - "$PB" <<'PYEOF'
+import sys
+p=sys.argv[1]
+s=open(p,encoding='utf-8').read()
+old="\tif command -v nlbw >/dev/null 2>&1 && [ -S /var/run/nlbwmon.sock ]; then"
+assert s.count(old)==1, f"anchor count={s.count(old)}"
+new=("\t# Prefer wrtbwmon: probe nlbwmon only when wrtbwmon is absent\n"
+     "\tif [ ! -f /usr/sbin/wrtbwmon ] && command -v nlbw >/dev/null 2>&1 && [ -S /var/run/nlbwmon.sock ]; then")
+s=s.replace(old,new)
+open(p,'w',encoding='utf-8').write(s)
+PYEOF
+grep -q 'Prefer wrtbwmon: probe nlbwmon' "$PB" || { echo "patch pushbot traffic source failed" >&2; exit 1; }
 
-# Fix: iPhone Safari 访问 http://<lan>/wloc-ca.mobileconfig 回 403 Forbidden。
-# 根因：uhttpd 要求文件带“其他可读”位（file.c: !(st_mode & S_IROTH) -> 403），
-# 而 export-mobileconfig.sh 从不 chmod，守护进程 umask 偏严时文件为 0600。
-# 补丁：生成 profile 落盘后强制 chmod 0644（对每次重新生成都生效）。
-EXPS="$F/usr/sbin/export-mobileconfig.sh"
-# 唯一锚点：清理临时文件那行；在其后插入 chmod，保证 0644
-if grep -q '^rm -f "\$OUT.unsigned"' "$EXPS"; then
-	sed -i '/^rm -f "\$OUT.unsigned"/a chmod 0644 "$OUT"' "$EXPS"
+############################################################
+# wrtbwmon：关闭其自带常驻 daemon
+# 常驻 daemon 每次 update 会用 iptables -Z 清零计数器，与 PushBot 的按需
+# 取数互相偷数据。改为仅由 PushBot 以 one-shot 方式调用 wrtbwmon。
+############################################################
+WCFG="$PWD/package/community/wrtbwmon/net/etc/config/wrtbwmon"
+if [ -f "$WCFG" ]; then
+	sed -i "s/option enabled '1'/option enabled '0'/" "$WCFG"
 fi
-grep -q '^chmod 0644 "\$OUT"' "$EXPS" || { echo "patch export-mobileconfig.sh failed" >&2; exit 1; }
-
-rm -rf "$WLG_TMP"
-echo "wificalling-location-gateway integrated into files/ (mobileconfig 0644 patched)"
+grep -q "option enabled '0'" "$WCFG" || { echo "patch wrtbwmon config failed" >&2; exit 1; }
 
 ############################################################
-# 首次开机自定义：时区/中文 + pushbot/zabbix 默认启用
+# 首次开机自定义：时区/中文 + nlbwmon/pushbot/zabbix 默认启用
 ############################################################
 cat > "$F/etc/uci-defaults/99-immortalwrt-custom" <<'UCIEOF'
 #!/bin/sh
 
 # softether 包装器加入开机序列（是否真起仍由界面开关控制）
 [ -x /etc/init.d/softethervpn ] && /etc/init.d/softethervpn enable
-
-# Wi-Fi Calling / WLOC：加入开机序列。默认 enabled=0，开机不真起；
-# 用户在 LuCI 启用后由 procd 拉起
-[ -x /etc/init.d/wificalling-gateway ] && /etc/init.d/wificalling-gateway enable
-[ -x /etc/init.d/wloc-service ] && /etc/init.d/wloc-service enable
 
 # 默认主机名 StarNetWrt
 uci -q set system.@system[0].hostname='StarNetWrt'
@@ -104,6 +101,10 @@ uci -q commit network
 # LuCI 默认简体中文
 uci -q set luci.main.lang='zh_cn'
 uci -q commit luci
+
+# nlbwmon：官方包默认不启用开机服务，导致 LuCI 流量页无数据
+/etc/init.d/nlbwmon enable
+/etc/init.d/nlbwmon start
 
 # PushBot：默认 pushbot_enable=0 会导致启动即自杀
 if uci -q show pushbot >/dev/null 2>&1; then
