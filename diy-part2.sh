@@ -55,14 +55,24 @@ python3 - "$PB" <<'PYEOF'
 import sys
 p=sys.argv[1]
 s=open(p,encoding='utf-8').read()
-old="\tif command -v nlbw >/dev/null 2>&1 && [ -S /var/run/nlbwmon.sock ]; then"
+# 上游 master 新版探测块（nlbw 优先，wrtbwmon 次之）
+old=("\tif command -v nlbw >/dev/null 2>&1; then\n"
+     "\t\ttraffic_source=\"nlbw\"\n"
+     "\telif [ -f \"/usr/sbin/wrtbwmon\" ]; then\n"
+     "\t\ttraffic_source=\"wrtbw\"\n"
+     "\tfi")
 assert s.count(old)==1, f"anchor count={s.count(old)}"
-new=("\t# Prefer wrtbwmon: probe nlbwmon only when wrtbwmon is absent\n"
-     "\tif [ ! -f /usr/sbin/wrtbwmon ] && command -v nlbw >/dev/null 2>&1 && [ -S /var/run/nlbwmon.sock ]; then")
+# 交换顺序：wrtbwmon 优先
+new=("\t# Prefer wrtbwmon over nlbwmon for client traffic\n"
+     "\tif [ -f \"/usr/sbin/wrtbwmon\" ]; then\n"
+     "\t\ttraffic_source=\"wrtbw\"\n"
+     "\telif command -v nlbw >/dev/null 2>&1; then\n"
+     "\t\ttraffic_source=\"nlbw\"\n"
+     "\tfi")
 s=s.replace(old,new)
 open(p,'w',encoding='utf-8').write(s)
 PYEOF
-grep -q 'Prefer wrtbwmon: probe nlbwmon' "$PB" || { echo "patch pushbot traffic source failed" >&2; exit 1; }
+grep -q 'Prefer wrtbwmon over nlbwmon' "$PB" || { echo "patch pushbot traffic source failed" >&2; exit 1; }
 
 ############################################################
 # wrtbwmon：关闭其自带常驻 daemon
