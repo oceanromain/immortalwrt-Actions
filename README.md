@@ -44,7 +44,6 @@
 | luci-app-tcpdump | 1.0-r2 | 抓包 |
 | luci-app-snmpd | 26.252.03150 | SNMP |
 | luci-app-zabbix-agent | 1.0.0-r1 | Zabbix Agent 配置界面 |
-| luci-app-wificalling-location-gateway | 1.4.0-r1 | Wi-Fi Calling + WLOC 定位网关 |
 
 ### 后端 / 核心组件
 
@@ -73,11 +72,7 @@
 | kmod-nft-offload / kmod-tcp-bbr | 6.18.44-r1 |
 | kmod-nft-fullcone | 6.18.44.2023.05.17~07d93b62-r3 |
 | zoneinfo-asia | 2026c-r1 |
-| rpcd-mod-rpcsys | 2026.07.19~e37ed9d8-r1 | Wi-Fi Calling 网关 rpcd 依赖 |
-
-> PassWall 默认不含 NaiveProxy（规避其 gn 主机工具在云编译上的构建问题）。
->
-> Wi-Fi Calling Location Gateway 为 Rust 项目，因固件源码树无 Rust 编译基建，构建时下载官方 pinned 预编译 x86_64 IPK（v1.4.0-r1，sha256 校验）解包进 rootfs；二进制 static-pie 零动态库依赖。两个服务默认 enabled=0，在 LuCI 启用后生效。
+| wrtbwmon / iptables-nft | 1.2.1-r3 / 1.8.10-r3 | PushBot 客户端流量统计（iptables 记账后端） |
 
 ## 固件产物
 
@@ -98,4 +93,4 @@ Actions → **ImmortalWrt Builder** → Run workflow。编译约 2–3 小时，
 - `.config`：软件包选择（本地源码树 `make defconfig` 两轮幂等校验）
 - `feeds.conf.default`：软件源
 - `diy-part1.sh`：feeds 更新前（第三方插件 clone）
-- `diy-part2.sh`：feeds 更新后（生成 files 覆盖：默认 IP/主机名/时区、conntrack、SoftEther procd 包装、pushbot/zabbix 启用）
+- `diy-part2.sh`：feeds 更新后（生成 files 覆盖：默认 IP/主机名/时区、conntrack、SoftEther procd 包装；启用 nlbwmon；PushBot 流量源优先 wrtbwmon；wrtbwmon 常驻 daemon 关闭）
