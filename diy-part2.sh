@@ -58,8 +58,20 @@ echo "$WLG_SHA  $WLG_TMP/wlg.ipk" | sha256sum -c -
 mkdir -p "$WLG_TMP/ar"
 tar xzf "$WLG_TMP/wlg.ipk" -C "$WLG_TMP/ar"
 tar xzf "$WLG_TMP/ar/data.tar.gz" -C "$F"
+
+# Fix: iPhone Safari 访问 http://<lan>/wloc-ca.mobileconfig 回 403 Forbidden。
+# 根因：uhttpd 要求文件带“其他可读”位（file.c: !(st_mode & S_IROTH) -> 403），
+# 而 export-mobileconfig.sh 从不 chmod，守护进程 umask 偏严时文件为 0600。
+# 补丁：生成 profile 落盘后强制 chmod 0644（对每次重新生成都生效）。
+EXPS="$F/usr/sbin/export-mobileconfig.sh"
+# 唯一锚点：清理临时文件那行；在其后插入 chmod，保证 0644
+if grep -q '^rm -f "\$OUT.unsigned"' "$EXPS"; then
+	sed -i '/^rm -f "\$OUT.unsigned"/a chmod 0644 "$OUT"' "$EXPS"
+fi
+grep -q '^chmod 0644 "\$OUT"' "$EXPS" || { echo "patch export-mobileconfig.sh failed" >&2; exit 1; }
+
 rm -rf "$WLG_TMP"
-echo "wificalling-location-gateway integrated into files/"
+echo "wificalling-location-gateway integrated into files/ (mobileconfig 0644 patched)"
 
 ############################################################
 # 首次开机自定义：时区/中文 + pushbot/zabbix 默认启用
