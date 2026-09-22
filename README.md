@@ -92,5 +92,9 @@ Actions → **ImmortalWrt Builder** → Run workflow。编译约 2–3 小时，
 
 - `.config`：软件包选择（本地源码树 `make defconfig` 两轮幂等校验）
 - `feeds.conf.default`：软件源
-- `diy-part1.sh`：feeds 更新前（第三方插件 clone）
+- `diy-part1.sh`：feeds 更新前（第三方插件 clone，全部固定到已验证 commit SHA）
 - `diy-part2.sh`：feeds 更新后（生成 files 覆盖：默认 IP/主机名/时区、conntrack、SoftEther procd 包装；启用 nlbwmon；PushBot 流量源优先 wrtbwmon；wrtbwmon 常驻 daemon 关闭）
+
+## 版本与回退
+
+版本标签（v5–v9）、一键回退、第三方源固定 commit 的操作见 [VERSIONING.md](VERSIONING.md)。
