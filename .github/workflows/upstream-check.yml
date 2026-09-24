@@ -1,0 +1,99 @@
+name: ImmortalWrt Upstream Checker
+
+on:
+  schedule:
+    # Every Monday 15:00 Asia/Shanghai (07:00 UTC)
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  UPSTREAM_REPO: immortalwrt/immortalwrt
+  UPSTREAM_BRANCH: master
+  MARKER_FILE: .last-immortalwrt-build-sha
+
+jobs:
+  detect:
+    runs-on: ubuntu-22.04
+    outputs:
+      should_build: ${{ steps.compare.outputs.should_build }}
+      upstream_sha: ${{ steps.upstream.outputs.sha }}
+      upstream_date: ${{ steps.upstream.outputs.date }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve upstream head
+        id: upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          meta="$(gh api "repos/${UPSTREAM_REPO}/commits/${UPSTREAM_BRANCH}" --jq '[.sha, .commit.committer.date] | @tsv')"
+          sha="${meta%%$'\t'*}"
+          committed_at="${meta#*$'\t'}"
+          [[ "${sha}" =~ ^[0-9a-f]{40}$ ]]
+          echo "sha=${sha}" >> "${GITHUB_OUTPUT}"
+          echo "date=${committed_at}" >> "${GITHUB_OUTPUT}"
+          echo "Upstream ${UPSTREAM_BRANCH}: ${sha} (${committed_at})"
+
+      - name: Read last successfully built SHA
+        id: last
+        run: |
+          set -euo pipefail
+          sha=""
+          if [ -s "${MARKER_FILE}" ]; then
+            sha="$(tr -d '[:space:]' < "${MARKER_FILE}")"
+          fi
+          echo "sha=${sha}" >> "${GITHUB_OUTPUT}"
+          echo "Last successful build SHA: ${sha:-<unknown>}"
+
+      - name: Compare upstream and last build
+        id: compare
+        run: |
+          set -euo pipefail
+          last_sha="${{ steps.last.outputs.sha }}"
+          upstream_sha="${{ steps.upstream.outputs.sha }}"
+          if [[ "${last_sha}" =~ ^[0-9a-f]{40}$ && "${last_sha}" == "${upstream_sha}" ]]; then
+            should_build=false
+            echo "No upstream update; skip firmware build."
+          else
+            should_build=true
+            echo "Upstream update found; firmware build will run."
+          fi
+          echo "should_build=${should_build}" >> "${GITHUB_OUTPUT}"
+
+  build:
+    needs: detect
+    if: needs.detect.outputs.should_build == 'true'
+    uses: oceanromain/immortalwrt-Actions/.github/workflows/openwrt-builder.yml@main
+    secrets: inherit
+
+  record:
+    needs:
+      - detect
+      - build
+    if: needs.detect.outputs.should_build == 'true' && needs.build.result == 'success'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Record successfully built upstream SHA
+        run: |
+          set -euo pipefail
+          upstream_sha="${{ needs.build.outputs.upstream_sha }}"
+          [[ "${upstream_sha}" =~ ^[0-9a-f]{40}$ ]]
+          printf '%s\n' "${upstream_sha}" > "${MARKER_FILE}"
+
+      - name: Commit marker
+        run: |
+          set -euo pipefail
+          upstream_sha="${{ needs.build.outputs.upstream_sha }}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${MARKER_FILE}"
+          git commit -m "chore: record scheduled ImmortalWrt build ${upstream_sha:0:12}"
+          git push
