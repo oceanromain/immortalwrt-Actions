@@ -49,6 +49,18 @@ git reset --hard v6
 git push -f origin main
 ```
 
+## 官方 feed 固定 commit
+
+`feeds.conf.default` 使用 OpenWrt feeds 原生的 `URL^commit` 语法固定官方 feed。2026-09-25 验证 `luci-app-homeproxy` 时锁定：
+
+```bash
+packages=6d68ffeb270860be5d73ee2898d58e7c6019d9a4
+luci=adc898b447eb4ee8023398182f5d0de2e8817e81
+routing=4b9891b9136259f93294a424507ed24c5e8c1cbd
+```
+
+对应验证结果：`luci-app-homeproxy=y`，自动拉入 `sing-box 1.12.25`、`firewall4`、`kmod-nft-tproxy`、`ucode-mod-digest`，中文翻译包 `luci-i18n-homeproxy-zh-cn=y`；两轮 `make defconfig` 幂等。
+
 ## 第三方源固定 commit
 
 `diy-part1.sh` 顶部集中声明六个第三方源锁定的 commit SHA：

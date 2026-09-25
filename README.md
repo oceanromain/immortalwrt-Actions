@@ -28,6 +28,7 @@
 |---|---|---|
 | luci-app-openclash | 0.47.156 | OpenClash 代理 |
 | luci-app-passwall | 26.9.9-r1 | PassWall 代理 |
+| luci-app-homeproxy | LuCI feed pinned | ImmortalWrt 官方 sing-box 代理平台 |
 | luci-app-tailscale-community | 26.252.03150 | Tailscale 组网 |
 | luci-app-zerotier | 26.252.03150 | ZeroTier 组网 |
 | luci-app-softethervpn | 26.252.03150 | SoftEther VPN（server/client/bridge） |
@@ -91,7 +92,7 @@ Actions → **ImmortalWrt Builder** → Run workflow。编译约 2–3 小时，
 ## 自定义
 
 - `.config`：软件包选择（本地源码树 `make defconfig` 两轮幂等校验）
-- `feeds.conf.default`：软件源
+- `feeds.conf.default`：软件源（官方 packages/luci/routing feed 固定到已验证 commit SHA）
 - `diy-part1.sh`：feeds 更新前（第三方插件 clone，全部固定到已验证 commit SHA）
 - `diy-part2.sh`：feeds 更新后（生成 files 覆盖：默认 IP/主机名/时区、conntrack、SoftEther procd 包装；启用 nlbwmon；PushBot 流量源优先 wrtbwmon；wrtbwmon 常驻 daemon 关闭）
 
