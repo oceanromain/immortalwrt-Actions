@@ -35,7 +35,7 @@
 | luci-proto-wireguard | 26.252.03150 | WireGuard 协议支持 |
 | luci-app-vlmcsd | 26.252.03150 | KMS 激活服务 |
 | luci-app-lucky | 2.2.2-r1 | Lucky（动态域名/端口转发等） |
-| luci-app-pushbot | 5.17-r23 | 多渠道消息推送 |
+| luci-app-pushbot | 6.00-r29 | 多渠道消息推送 |
 | luci-app-turboacc | 1.4-r1 | 流量转发加速/BBR/FullCONE |
 | luci-app-upnp | 26.252.03150 | UPnP（miniupnpd-nftables） |
 | luci-app-nlbwmon | 26.252.03150 | 流量带宽统计 |

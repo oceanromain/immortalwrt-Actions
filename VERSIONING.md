@@ -92,6 +92,12 @@ WRTBWMON_SHA=...
    git push origin v10
    ```
 
+### PushBot 升级记录
+
+- 2026-09-26：`c92ce9e4aefb19409ad2c2f9c5e83466a76f44af`（manifest 实测 `5.18-r17`）→ `252ce5558cdc3d8814450329a83c396a6110e512`（`Makefile` 实测 `6.00-r29`）。
+- 触发时上游尚未发布/打 `r29` tag，因此以锁定 commit 和 `Makefile` 的 `PKG_VERSION/PKG_RELEASE` 为准。
+- 本仓 `diy-part2.sh` 的 wrtbwmon 优先补丁锚点仍唯一命中；两轮 `make defconfig` 幂等。
+
 ## 新版本发布检查清单
 
 - [ ] 本地两轮 `make defconfig` 幂等
