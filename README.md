@@ -44,7 +44,7 @@
 | luci-app-ramfree | 26.252.03150 | 释放内存 |
 | luci-app-tcpdump | 1.0-r2 | 抓包 |
 | luci-app-snmpd | 26.252.03150 | SNMP |
-| luci-app-zabbix-agent | 1.0.0-r1 | Zabbix Agent 配置界面 |
+| luci-app-zabbix-agent | 1.0.0-r1（compat patched） | Zabbix Agent 配置界面 |
 
 ### 后端 / 核心组件
 

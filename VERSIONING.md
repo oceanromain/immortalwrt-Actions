@@ -98,6 +98,13 @@ WRTBWMON_SHA=...
 - 触发时上游尚未发布/打 `r29` tag，因此以锁定 commit 和 `Makefile` 的 `PKG_VERSION/PKG_RELEASE` 为准。
 - 本仓 `diy-part2.sh` 的 wrtbwmon 优先补丁锚点仍唯一命中；两轮 `make defconfig` 幂等。
 
+### Zabbix Agent LuCI 兼容修复
+
+- 2026-09-30：继续锁定 `zzxym/luci-app-zabbix-agent` commit `2a01e4c4a5fe3f92879f1ff3dff0780dc0821b47`，包版本仍为 `1.0.0-r1`。
+- 上游原插件使用已废弃的 `htdocs/luci-static/resources/menu.d` 菜单路径，且 UCI 名写成 `zabbix-agentd`；当前 ImmortalWrt 官方后端使用 `zabbix_agentd`，导致固件中有包但 LuCI 不显示。
+- `diy-part2.sh` 在构建期完成兼容修复：现代 `root/usr/share/luci/menu.d` 菜单、对应 ACL、重写视图、中文翻译、`zabbix-agentd-sync` 配置同步服务、首启 UCI 默认值。
+- 隔离源码树验证通过：两轮 `make defconfig` 幂等；`luci-app-zabbix-agent`、中文翻译、`zabbix-agentd` 符号均保留。
+
 ## 新版本发布检查清单
 
 - [ ] 本地两轮 `make defconfig` 幂等
