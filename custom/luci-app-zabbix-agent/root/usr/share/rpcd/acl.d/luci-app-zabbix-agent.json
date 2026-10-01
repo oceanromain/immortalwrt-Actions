@@ -1,0 +1,17 @@
+{
+	"luci-app-zabbix-agent": {
+		"description": "Grant access to Zabbix agent configuration",
+		"read": {
+			"uci": [ "zabbix_agentd" ],
+			"ubus": {
+				"service": [ "list" ]
+			}
+		},
+		"write": {
+			"uci": [ "zabbix_agentd" ],
+			"ubus": {
+				"rc": [ "init" ]
+			}
+		}
+	}
+}

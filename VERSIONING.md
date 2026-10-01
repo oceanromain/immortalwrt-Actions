@@ -105,6 +105,15 @@ WRTBWMON_SHA=...
 - `diy-part2.sh` 在构建期完成兼容修复：现代 `root/usr/share/luci/menu.d` 菜单、对应 ACL、重写视图、中文翻译、`zabbix-agentd-sync` 配置同步服务、首启 UCI 默认值。
 - 隔离源码树验证通过：两轮 `make defconfig` 幂等；`luci-app-zabbix-agent`、中文翻译、`zabbix-agentd` 符号均保留。
 
+### diy-part2 拆分重构（2026-10-01）
+
+- 原单文件 `diy-part2.sh`（437 行，大部分为内嵌 heredoc）拆为三部分：
+  - `files/`：rootfs 覆盖，改用 P3TERX 模板原生 `[ -e files ] && mv files openwrt/files` 机制
+  - `custom/<包名>/`：第三方包源码覆盖层，目录名与包名 1:1 对应
+  - `patches/*.sh`：动态补丁，按文件名序执行，各带锚点/结果校验
+- `diy-part2.sh` 仅保留约 40 行编排逻辑；重构前后构建产物经隔离源码树逐文件比对，字节一致。
+- 回退方法：单文件版本完整保留在分支 `backup/diy2-monolith-v11`（= v11 提交 `601f4cb`）。恢复时 `git restore --source=backup/diy2-monolith-v11 -- diy-part2.sh`，并删除 `files/ custom/ patches/` 后提交。
+
 ## 新版本发布检查清单
 
 - [ ] 本地两轮 `make defconfig` 幂等

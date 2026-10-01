@@ -1,0 +1,61 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Zabbix Agent"
+msgstr "Zabbix Agent"
+
+msgid "Manage Zabbix agent service and connection settings."
+msgstr "管理 Zabbix Agent 服务和连接设置。"
+
+msgid "Enable"
+msgstr "启用"
+
+msgid "Zabbix server"
+msgstr "Zabbix 服务器"
+
+msgid "Comma-separated passive Zabbix server IP addresses or hostnames."
+msgstr "被动模式允许的 Zabbix 服务器 IP 或主机名，多个值用逗号分隔。"
+
+msgid "Active Zabbix server"
+msgstr "主动模式 Zabbix 服务器"
+
+msgid "Zabbix active-check target, e.g. 127.0.0.1:10051. Leave empty to disable active checks."
+msgstr "主动检查目标，例如 127.0.0.1:10051；留空则关闭主动检查。"
+
+msgid "Hostname"
+msgstr "主机名"
+
+msgid "Optional unique host name. Defaults to the system hostname."
+msgstr "可选的唯一主机名；默认使用系统主机名。"
+
+msgid "Listen IP"
+msgstr "监听 IP"
+
+msgid "Listen port"
+msgstr "监听端口"
+
+msgid "Debug level"
+msgstr "调试级别"
+
+msgid "Critical"
+msgstr "严重"
+
+msgid "Error"
+msgstr "错误"
+
+msgid "Warning"
+msgstr "警告"
+
+msgid "Notice"
+msgstr "通知"
+
+msgid "Debug"
+msgstr "调试"
+
+msgid "Timeout"
+msgstr "超时"
+
+msgid "Agent check timeout in seconds (1-30)."
+msgstr "Agent 检查超时时间，单位秒（1-30）。"

@@ -1,0 +1,27 @@
+#!/bin/sh
+
+[ -f /etc/config/zabbix_agentd ] || exit 0
+. /lib/functions.sh
+
+set_default() {
+	local value
+	config_get value general "$1"
+	[ -n "$value" ] || uci set zabbix_agentd.general."$1"="$2"
+}
+
+config_load zabbix_agentd
+uci set zabbix_agentd.general.enabled='1'
+set_default server '127.0.0.1'
+set_default hostname ''
+set_default listen_ip '0.0.0.0'
+set_default listen_port '10050'
+set_default timeout '3'
+set_default debug_level '3'
+uci commit zabbix_agentd
+
+/etc/init.d/zabbix-agentd-sync enable
+/etc/init.d/zabbix_agentd enable
+/etc/init.d/zabbix-agentd-sync start
+/etc/init.d/zabbix_agentd restart
+
+exit 0

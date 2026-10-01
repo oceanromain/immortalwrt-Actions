@@ -94,7 +94,10 @@ Actions → **ImmortalWrt Builder** → Run workflow。编译约 2–3 小时，
 - `.config`：软件包选择（本地源码树 `make defconfig` 两轮幂等校验）
 - `feeds.conf.default`：软件源（官方 packages/luci/routing feed 固定到已验证 commit SHA）
 - `diy-part1.sh`：feeds 更新前（第三方插件 clone，全部固定到已验证 commit SHA）
-- `diy-part2.sh`：feeds 更新后（生成 files 覆盖：默认 IP/主机名/时区、conntrack、SoftEther procd 包装；启用 nlbwmon；PushBot 流量源优先 wrtbwmon；wrtbwmon 常驻 daemon 关闭）
+- `files/`：rootfs 覆盖文件（模板原生机制，构建时整体并入固件：默认 IP/主机名/时区、conntrack、SoftEther procd 包装、首启 uci-defaults）
+- `custom/<包名>/`：第三方包源码覆盖层（如 Zabbix Agent 兼容层：现代菜单/ACL/视图/翻译/配置同步服务）
+- `patches/*.sh`：动态补丁，按文件名序执行（Zabbix 旧文件清理、PushBot 流量源优先 wrtbwmon、wrtbwmon 常驻 daemon 关闭）
+- `diy-part2.sh`：feeds 更新后的纯编排器（应用 custom/ 覆盖层 → 依序执行 patches/，不内嵌任何文件内容）
 
 ## 版本与回退
 

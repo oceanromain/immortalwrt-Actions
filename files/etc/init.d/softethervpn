@@ -1,0 +1,16 @@
+#!/bin/sh /etc/rc.common
+#
+# Wrapper: LuCI 开关 UCI softethervpn.@softether[0].enable
+#  -> 官方 procd 服务 softethervpnserver
+#
+START=99
+STOP=10
+
+start() {
+	[ "$(uci -q get softethervpn.@softether[0].enable)" = "1" ] || return 0
+	/etc/init.d/softethervpnserver start
+}
+
+stop() {
+	/etc/init.d/softethervpnserver stop
+}
