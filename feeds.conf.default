@@ -1,3 +1,9 @@
-src-git packages https://github.com/immortalwrt/packages.git^6d68ffeb270860be5d73ee2898d58e7c6019d9a4
-src-git luci https://github.com/immortalwrt/luci.git^adc898b447eb4ee8023398182f5d0de2e8817e81
-src-git routing https://github.com/openwrt/routing.git^4b9891b9136259f93294a424507ed24c5e8c1cbd
+# Official ImmortalWrt/OpenWrt feeds — pinned with OpenWrt src-git URL^commit.
+# Keeps builds reproducible; bump with: scripts/sync-feed-pins.sh write
+# Last synced (UTC): 2026-11-20T02:30:55Z
+# packages decf94639ffd6ddd26591c190b547c6b7eea150b
+# luci     8724b54de3a760294aedeb10a29ffba7e44cca2f
+# routing  ea8633da9c461a9bdc62a0323439d31180762e03
+src-git packages https://github.com/immortalwrt/packages.git^decf94639ffd6ddd26591c190b547c6b7eea150b
+src-git luci https://github.com/immortalwrt/luci.git^8724b54de3a760294aedeb10a29ffba7e44cca2f
+src-git routing https://github.com/openwrt/routing.git^ea8633da9c461a9bdc62a0323439d31180762e03

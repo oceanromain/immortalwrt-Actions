@@ -49,17 +49,74 @@ git reset --hard v6
 git push -f origin main
 ```
 
-## 官方 feed 固定 commit
+## 官方 feed 固定 commit（钉死 + 跟随）
 
-`feeds.conf.default` 使用 OpenWrt feeds 原生的 `URL^commit` 语法固定官方 feed。2026-09-25 验证 `luci-app-homeproxy` 时锁定：
+`feeds.conf.default` 使用 OpenWrt 原生 `URL^commit`：**每次构建可复现**，同时用同步机制**跟随上游 tip**，避免 core 狂奔、feed 冬眠。
+
+### 策略
+
+| 层 | 策略 | 谁来动 |
+|---|---|---|
+| immortalwrt **core** | `master` 浮动；成功构建写入 `.last-immortalwrt-build-sha` | `upstream-check.yml`（周一 15:00 北京） |
+| **packages / luci / routing** | 始终 `src-git …^<sha>` 钉死；定期对齐 tip | `feed-sync.yml` + `scripts/sync-feed-pins.sh` |
+| 第三方 community | `diy-part1.sh` 的 `*_SHA` | 人工改 SHA（补丁锚点敏感，不自动跟） |
+
+原则：**构建消费的永远是 pin，不是裸 tip**；「新」来自主动 bump pin，「稳」来自 pin 不变则字节级可复现。
+
+### 当前 pin
+
+以仓库根 `feeds.conf.default` 为准（文件头注释含 Last synced）。历史锚点：
+
+- 2026-09-25（homeproxy 验证基线）：
+  `packages=6d68ffeb…` / `luci=adc898b4…` / `routing=4b9891b9…`
+  → `luci-app-homeproxy=y`，拉入 `sing-box` / `firewall4` / `kmod-nft-tproxy` 等；两轮 `make defconfig` 幂等。
+- 2026-11-20：引入 `scripts/sync-feed-pins.sh` + `Feed Pin Sync` 工作流，pin 对齐当时 upstream tip（packages 已含 rust 1.96.1，`patches/060` 将 no-op）。
+
+### 如何跟随上游（日常）
+
+**推荐：PR 模式（默认）**
+
+1. Actions → **Feed Pin Sync** → Run workflow → `mode=pr`  
+   （定时：每周一 16:00 北京，有漂移则 force-push 分支 `chore/feed-pins-auto` 并开/更新 PR）
+2. 审 PR 里的 packages/luci/routing 短 SHA → 合并 main
+3. Actions → **ImmortalWrt Builder** → Run workflow
+4. 全绿 + 实机冒烟后，可选打 `vN` 标签
+
+**本地一手办：**
 
 ```bash
-packages=6d68ffeb270860be5d73ee2898d58e7c6019d9a4
-luci=adc898b447eb4ee8023398182f5d0de2e8817e81
-routing=4b9891b9136259f93294a424507ed24c5e8c1cbd
+# 看是否落后 tip（落后 exit 2）
+bash scripts/sync-feed-pins.sh check
+
+# 对齐到当前 tip 并写回 feeds.conf.default
+bash scripts/sync-feed-pins.sh write
+
+# 或钉到指定 commit（回退/对齐某次已知好版本）
+bash scripts/sync-feed-pins.sh write \
+  --packages 6d68ffeb270860be5d73ee2898d58e7c6019d9a4 \
+  --luci adc898b447eb4ee8023398182f5d0de2e8817e81 \
+  --routing 4b9891b9136259f93294a424507ed24c5e8c1cbd
 ```
 
-对应验证结果：`luci-app-homeproxy=y`，自动拉入 `sing-box 1.12.25`、`firewall4`、`kmod-nft-tproxy`、`ucode-mod-digest`，中文翻译包 `luci-i18n-homeproxy-zh-cn=y`；两轮 `make defconfig` 幂等。
+**激进：直接写 main（单人仓可用）**
+
+Feed Pin Sync → `mode=main`，可选勾选 `open_builder` 自动触发编译。失败时用下面回退 pin。
+
+### feed bump 后检查清单
+
+- [ ] `Load custom configuration` 绿（`patches/*.sh` 锚点仍命中或按设计 no-op）
+- [ ] `make defconfig` / 编译全绿；`*.manifest` 关注包版本（homeproxy / sing-box / rust 等）
+- [ ] 若某定点补丁在新 tip 上锚点失败：先修 `patches/` 再重编，不要改回裸 tip
+- [ ] 实机冒烟；通过后更新本文件「当前 pin」叙述并可选打标签
+
+### 只回退官方 feed pin
+
+```bash
+git restore --source=<已知好 commit> -- feeds.conf.default
+git commit -m "rollback: feeds pins to <desc>"
+git push
+# 再手动 Run ImmortalWrt Builder
+```
 
 ## 第三方源固定 commit
 

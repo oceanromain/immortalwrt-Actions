@@ -1,0 +1,265 @@
+# Feed pin 跟随上游：检查滞后，可选写入 PR / 直接提交 main。
+# 构建仍只消费 feeds.conf.default 里的 URL^commit（稳）；
+# 本工作流负责把 pin 对齐 tip（新），不自动改第三方 diy-part1 SHA。
+#
+# workflow_dispatch 的 SHA 输入只经 env 传入，并在脚本侧用
+# expand_sha/gh api 校验为合法 commit，避免 shell 拼接注入。
+name: Feed Pin Sync
+
+on:
+  schedule:
+    # 每周一 16:00 北京时间（08:00 UTC）—— 紧接 upstream-check(15:00)
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: check=只报告；pr=有漂移则开/更新 PR；main=直接提交 main（慎用）
+        type: choice
+        options:
+          - check
+          - pr
+          - main
+        default: pr
+      packages_sha:
+        description: 可选，覆盖 packages pin（短/长 SHA）；空=上游 master tip
+        required: false
+        default: ''
+      luci_sha:
+        description: 可选，覆盖 luci pin
+        required: false
+        default: ''
+      routing_sha:
+        description: 可选，覆盖 routing pin
+        required: false
+        default: ''
+      open_builder:
+        description: 写入 main 成功后是否触发 ImmortalWrt Builder
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  TZ: Asia/Shanghai
+  BRANCH_NAME: chore/feed-pins-auto
+
+jobs:
+  sync:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve mode
+        id: mode
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME}" = "schedule" ]; then
+            echo "mode=pr" >> "$GITHUB_OUTPUT"
+          else
+            case "${INPUT_MODE}" in
+              check|pr|main) echo "mode=${INPUT_MODE}" >> "$GITHUB_OUTPUT" ;;
+              *) echo "invalid mode: ${INPUT_MODE}" >&2; exit 1 ;;
+            esac
+          fi
+
+      - name: Check current pin drift
+        id: drift
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          chmod +x scripts/sync-feed-pins.sh
+          set +e
+          scripts/sync-feed-pins.sh check
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            echo "behind=false" >> "$GITHUB_OUTPUT"
+          elif [ "$rc" -eq 2 ]; then
+            echo "behind=true" >> "$GITHUB_OUTPUT"
+          else
+            exit "$rc"
+          fi
+          scripts/sync-feed-pins.sh print-json | tee feed-pin-status.json
+
+      - name: Decide whether to write
+        id: decide
+        env:
+          MODE: ${{ steps.mode.outputs.mode }}
+          BEHIND: ${{ steps.drift.outputs.behind }}
+          IN_PACKAGES: ${{ inputs.packages_sha }}
+          IN_LUCI: ${{ inputs.luci_sha }}
+          IN_ROUTING: ${{ inputs.routing_sha }}
+        run: |
+          set -euo pipefail
+          forced=false
+          [ -n "${IN_PACKAGES}" ] && forced=true
+          [ -n "${IN_LUCI}" ] && forced=true
+          [ -n "${IN_ROUTING}" ] && forced=true
+
+          write=false
+          if [ "${MODE}" = "check" ]; then
+            write=false
+          elif [ "${BEHIND}" = "true" ] || [ "${forced}" = "true" ]; then
+            write=true
+          fi
+          echo "write=${write}" >> "$GITHUB_OUTPUT"
+          echo "mode=${MODE} behind=${BEHIND} forced=${forced} write=${write}"
+
+      - name: Apply feed pins
+        if: steps.decide.outputs.write == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IN_PACKAGES: ${{ inputs.packages_sha }}
+          IN_LUCI: ${{ inputs.luci_sha }}
+          IN_ROUTING: ${{ inputs.routing_sha }}
+        run: |
+          set -euo pipefail
+          args=(write)
+          # 仅允许十六进制短/长 SHA；非法直接失败（sync 脚本还会再向 GitHub 校验）
+          valid_sha='^[0-9a-fA-F]{7,40}$'
+          if [ -n "${IN_PACKAGES}" ]; then
+            [[ "${IN_PACKAGES}" =~ $valid_sha ]] || { echo "invalid packages_sha" >&2; exit 1; }
+            args+=(--packages "${IN_PACKAGES}")
+          fi
+          if [ -n "${IN_LUCI}" ]; then
+            [[ "${IN_LUCI}" =~ $valid_sha ]] || { echo "invalid luci_sha" >&2; exit 1; }
+            args+=(--luci "${IN_LUCI}")
+          fi
+          if [ -n "${IN_ROUTING}" ]; then
+            [[ "${IN_ROUTING}" =~ $valid_sha ]] || { echo "invalid routing_sha" >&2; exit 1; }
+            args+=(--routing "${IN_ROUTING}")
+          fi
+          scripts/sync-feed-pins.sh "${args[@]}"
+          echo "---- feeds.conf.default ----"
+          cat feeds.conf.default
+
+      - name: Commit to PR branch
+        id: pr_commit
+        if: steps.decide.outputs.write == 'true' && steps.mode.outputs.mode == 'pr'
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -B "${BRANCH_NAME}"
+          git add feeds.conf.default
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No file change after write (unexpected if behind=true)."
+            exit 0
+          fi
+          p=$(grep -E '^src-git packages ' feeds.conf.default | sed -E 's/.*\^([0-9a-f]+)$/\1/' | cut -c1-12)
+          l=$(grep -E '^src-git luci ' feeds.conf.default | sed -E 's/.*\^([0-9a-f]+)$/\1/' | cut -c1-12)
+          r=$(grep -E '^src-git routing ' feeds.conf.default | sed -E 's/.*\^([0-9a-f]+)$/\1/' | cut -c1-12)
+          git commit -m "chore(feeds): bump pins packages=${p} luci=${l} routing=${r}"
+          git push -u origin "HEAD:${BRANCH_NAME}" --force
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "packages=${p}" >> "$GITHUB_OUTPUT"
+          echo "luci=${l}" >> "$GITHUB_OUTPUT"
+          echo "routing=${r}" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update pull request
+        if: steps.decide.outputs.write == 'true' && steps.mode.outputs.mode == 'pr' && steps.pr_commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PIN_P: ${{ steps.pr_commit.outputs.packages }}
+          PIN_L: ${{ steps.pr_commit.outputs.luci }}
+          PIN_R: ${{ steps.pr_commit.outputs.routing }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF
+          ## 官方 feed pin 跟随上游
+
+          自动将 \`feeds.conf.default\` 对齐到 packages/luci/routing 当前 tip（仍使用 \`URL^commit\`，可复现）。
+
+          | feed | new pin |
+          |---|---|
+          | packages | \`${PIN_P}\` |
+          | luci | \`${PIN_L}\` |
+          | routing | \`${PIN_R}\` |
+
+          ### 合并后请做
+          1. Actions → **ImmortalWrt Builder** → Run workflow
+          2. 确认 Compile / Upload 全绿；关注 \`Load custom configuration\`（diy 补丁锚点）
+          3. 实机冒烟通过后，按 VERSIONING.md 打版本标签（可选）
+
+          ### 说明
+          - 不改动 \`diy-part1.sh\` 第三方 \`*_SHA\`（Lucky/PushBot 等仍钉死）
+          - \`patches/060-rust-*\` 等定点补丁在 feed 已含修复时会 no-op
+          - 回退：\`git restore --source=<旧commit> -- feeds.conf.default\`
+          EOF
+          )"
+          body="$(printf '%s\n' "$body" | sed -e 's/^          //')"
+
+          existing="$(gh pr list --head "$BRANCH_NAME" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --title "chore(feeds): bump official feed pins" --body "$body"
+            echo "Updated PR #$existing"
+          else
+            gh pr create \
+              --base main \
+              --head "$BRANCH_NAME" \
+              --title "chore(feeds): bump official feed pins" \
+              --body "$body"
+          fi
+
+      - name: Commit directly to main
+        id: main_commit
+        if: steps.decide.outputs.write == 'true' && steps.mode.outputs.mode == 'main'
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout main
+          git pull --ff-only origin main
+          git add feeds.conf.default
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          p=$(grep -E '^src-git packages ' feeds.conf.default | sed -E 's/.*\^([0-9a-f]+)$/\1/' | cut -c1-12)
+          l=$(grep -E '^src-git luci ' feeds.conf.default | sed -E 's/.*\^([0-9a-f]+)$/\1/' | cut -c1-12)
+          r=$(grep -E '^src-git routing ' feeds.conf.default | sed -E 's/.*\^([0-9a-f]+)$/\1/' | cut -c1-12)
+          git commit -m "chore(feeds): bump pins packages=${p} luci=${l} routing=${r}"
+          git push origin main
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger firmware build
+        if: steps.mode.outputs.mode == 'main' && steps.main_commit.outputs.changed == 'true' && inputs.open_builder == true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run "ImmortalWrt Builder" --ref main
+          echo "Triggered ImmortalWrt Builder on main"
+
+      - name: Summary
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MODE: ${{ steps.mode.outputs.mode }}
+          BEHIND: ${{ steps.drift.outputs.behind }}
+          WRITE: ${{ steps.decide.outputs.write }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Feed pin sync"
+            echo ""
+            echo "- event: \`${EVENT_NAME}\`"
+            echo "- mode: \`${MODE}\`"
+            echo "- behind_upstream: \`${BEHIND}\`"
+            echo "- write: \`${WRITE}\`"
+            if [ -f feed-pin-status.json ]; then
+              echo ""
+              echo '```json'
+              cat feed-pin-status.json
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
