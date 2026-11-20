@@ -92,13 +92,30 @@ Actions → **ImmortalWrt Builder** → Run workflow。编译约 2–3 小时，
 ## 自定义
 
 - `.config`：软件包选择（本地源码树 `make defconfig` 两轮幂等校验）
-- `feeds.conf.default`：软件源（官方 packages/luci/routing feed 固定到已验证 commit SHA）
-- `diy-part1.sh`：feeds 更新前（第三方插件 clone，全部固定到已验证 commit SHA）
+- `feeds.conf.default`：官方 packages/luci/routing（`URL^commit` 钉死；用 `scripts/sync-feed-pins.sh` / **Feed Pin Sync** 工作流跟随 tip）
+- `diy-part1.sh`：feeds 更新前（第三方插件 clone，全部固定到已验证 commit SHA，不随 feed-sync 自动升）
 - `files/`：rootfs 覆盖文件（模板原生机制，构建时整体并入固件：默认 IP/主机名/时区、conntrack、SoftEther procd 包装、首启 uci-defaults）
 - `custom/<包名>/`：第三方包源码覆盖层（如 Zabbix Agent 兼容层：现代菜单/ACL/视图/翻译/配置同步服务）
 - `patches/*.sh`：动态补丁，按文件名序执行（Zabbix 旧文件清理、PushBot 流量源优先 wrtbwmon、wrtbwmon 常驻 daemon 关闭）
 - `diy-part2.sh`：feeds 更新后的纯编排器（应用 custom/ 覆盖层 → 依序执行 patches/，不内嵌任何文件内容）
 
+## 跟随上游（稳 + 新）
+
+| 节奏 | 工作流 | 作用 |
+|---|---|---|
+| 周一 15:00 北京 | **ImmortalWrt Upstream Checker** | core `master` 有更新则编译；并报告 feed pin 是否落后 tip |
+| 周一 16:00 北京 | **Feed Pin Sync** | 官方 feed pin 落后 tip 时开/更新 PR（默认不直接改 main） |
+| 手动 | **ImmortalWrt Builder** | 合并 feed PR 后出固件 |
+
+本地快速对齐官方 feed：
+
+```bash
+bash scripts/sync-feed-pins.sh check   # 落后则 exit 2
+bash scripts/sync-feed-pins.sh write   # 写回 tip pin
+```
+
+第三方插件升级仍改 `diy-part1.sh` 的 `*_SHA`，流程见 VERSIONING.md。
+
 ## 版本与回退
 
-版本标签（v5–v9）、一键回退、第三方源固定 commit 的操作见 [VERSIONING.md](VERSIONING.md)。
+版本标签（v5–v9）、一键回退、官方 feed / 第三方源 pin 的操作见 [VERSIONING.md](VERSIONING.md)。
